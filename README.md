@@ -13,9 +13,19 @@ Use a declarative style to manage your infrastructure as code, all with bash scr
 3. Run the below command, replace `<repo>` with the HTTPS git URL of your repo
 
 ```bash
+sudo su
 curl -fsSL https://sh.robog.net/declare | bash -s -- <repo>
 ```
 
 ## Why
 
-I've been working on my homelab setup lately after some poorly executed upgrades broke SSH on my machines. Having worked with AWS and "infrastructure as code," I wondered if there was a way to do this on my own machines. I found Ansible a little too finicky and NixOS is a little too bespoke, so I wondered if there was a way to make a declarative system that used good old bash running on old reliable Debian. I used Claude Code to throw together a quick prototype of my vision, leveraging `btrfs` to do a system restore and `systemd` to run some special init scripts. 
+I've been working on my homelab setup lately after some poorly executed upgrades broke SSH on my machines. Having worked with AWS and "infrastructure as code," I wondered if there was a way to do this on my own machines. I found Ansible a little too finicky and NixOS is a little too bespoke, so I wondered if there was a way to make a declarative system that used good old bash running on old reliable Debian. I used Claude Code to throw together a quick prototype of my vision, leveraging `btrfs` to do a system restore and `systemd` to run some special init scripts.
+
+On one hand, it feels hacky. On the other hand, it feels classic and straightforward. Why write a new OS, or a bunch of Python or YAML? Debian, like most *nixes, are often managed through the command line. This method basically transforms this workflow into the declarative and modern workflow we've come to expect, using the tools and tricks we've become familiar with.
+
+## How
+
+- Webhook listens for events
+- A script checks if there is new commits (to double-check the very spoofable HTTP webhook), if so it restores to a clean state, then restarts the server.
+- A systemd service runs the bootstrap script on every system startup
+- A boostrap script updates the other scripts and itself, then runs itself again, starting the webhook and running your shell scripts—or any other code they might call in a language of your choice—on a "blank slate," each time you update the configuration, it creates the server's state in its entirety
