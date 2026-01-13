@@ -1,0 +1,88 @@
+#!/bin/bash
+set -euo pipefail
+
+REPO_DIR="/opt/declare-sh"
+MARKER_FILE="$REPO_DIR/has-run-once"
+WEBHOOK_PID_FILE="/var/run/webhook-receiver.pid"
+
+cd "$REPO_DIR"
+
+# ============================================================================
+# LOCKED SECTION - This code exists in the Btrfs restore point snapshot
+# ============================================================================
+# Any changes to this section will NOT take effect until a new snapshot is made.
+# This ensures the system can always pull the latest configuration from Git.
+#
+# PATH 1 (First run after restore): BOOTSTRAP=0, no marker file
+#   → Pulls from Git, re-executes with BOOTSTRAP=1, then EXITS via exec
+#
+# PATH 3 (Normal boot): BOOTSTRAP=0, marker file exists
+#   → Skips this entire block, continues to webhook startup below
+# ============================================================================
+if [ "${BOOTSTRAP:-0}" != "1" ]; then
+    if [ ! -f "$MARKER_FILE" ]; then
+        # PATH 1 ONLY: First run after restore
+        echo "[PATH 1] First run detected. Pulling latest configuration from Git..."
+        git fetch origin
+        git reset --hard origin/main
+
+        echo "[PATH 1] Re-executing bootstrap.sh with updated code..."
+        export BOOTSTRAP=1
+        exec "$0" "$@"
+        # exec replaces this process - script will NOT continue past this line
+    fi
+fi
+# ============================================================================
+# END OF LOCKED SECTION
+# ============================================================================
+
+# ============================================================================
+# The code below runs in TWO scenarios:
+#
+# PATH 2 (Second run, first boot): BOOTSTRAP=1, no marker file
+#   → Came from PATH 1 exec above
+#   → Installs Deno, starts webhook, runs initialize.sh, creates marker
+#
+# PATH 3 (Normal boot): BOOTSTRAP=0, marker file exists
+#   → System restarted, marker exists
+#   → Installs Deno (if needed), starts webhook, skips initialize.sh
+# ============================================================================
+
+# PATH 3 only: Print message for normal boot
+if [ -f "$MARKER_FILE" ]; then
+    echo "[PATH 3] Normal boot - marker exists, starting services..."
+fi
+
+# BOTH PATHS: Install Deno if not present
+if ! command -v deno &> /dev/null; then
+    echo "Installing Deno..."
+    curl -fsSL https://deno.land/install.sh | sh
+    export DENO_INSTALL="$HOME/.deno"
+    export PATH="$DENO_INSTALL/bin:$PATH"
+fi
+
+# BOTH PATHS: Start webhook receiver
+echo "Starting webhook receiver..."
+if [ -f "$WEBHOOK_PID_FILE" ]; then
+    OLD_PID=$(cat "$WEBHOOK_PID_FILE")
+    if kill -0 "$OLD_PID" 2>/dev/null; then
+        echo "Stopping old webhook receiver (PID: $OLD_PID)..."
+        kill "$OLD_PID" || true
+    fi
+fi
+
+deno run --allow-net --allow-run "$REPO_DIR/webhook-receiver.ts" &
+echo $! > "$WEBHOOK_PID_FILE"
+echo "Webhook receiver started (PID: $(cat $WEBHOOK_PID_FILE))"
+
+# PATH 2 only: First-time initialization
+if [ "${BOOTSTRAP:-0}" = "1" ] && [ ! -f "$MARKER_FILE" ]; then
+    echo "[PATH 2] Running first-time initialization..."
+    bash "$REPO_DIR/initialize.sh"
+
+    echo "[PATH 2] Creating marker file..."
+    touch "$MARKER_FILE"
+    echo "[PATH 2] First boot complete."
+fi
+
+echo "System ready."
