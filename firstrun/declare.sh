@@ -142,20 +142,39 @@ else
     # Configure snapper settings for declarative infrastructure
     echo "Configuring snapper settings..."
     snapper -c root set-config \
+        FSTYPE="btrfs" \
         TIMELINE_CREATE="no" \
         TIMELINE_CLEANUP="no" \
+        NUMBER_CLEANUP="yes" \
+        NUMBER_MIN_AGE="3600" \
         NUMBER_LIMIT="10" \
-        NUMBER_LIMIT_IMPORTANT="5"
+        NUMBER_LIMIT_IMPORTANT="5" \
+        BACKGROUND_COMPARISON="no"
 
     echo "Snapper settings configured:"
+    echo "  - Filesystem type: btrfs"
     echo "  - Timeline snapshots: disabled (we manage snapshots manually)"
+    echo "  - Number cleanup: enabled"
+    echo "  - Minimum age before cleanup: 1 hour (3600 seconds)"
     echo "  - Number limit: 10 snapshots"
     echo "  - Important snapshots limit: 5"
+    echo "  - Background comparison: disabled (for performance)"
 
     # Delete the default snapshot that snapper creates
     if snapper -c root list | grep -q "^0 "; then
         echo "Removing default snapper snapshot..."
         snapper -c root delete 0 2>/dev/null || true
+    fi
+
+    # Delete any existing clean-state snapshot to overwrite it
+    EXISTING_SNAPSHOT=$(snapper -c root --csvout list --columns number,description | \
+        grep ",clean-state$" | \
+        cut -d',' -f1 | \
+        tail -n 1)
+
+    if [ -n "$EXISTING_SNAPSHOT" ]; then
+        echo "Removing existing clean-state snapshot #$EXISTING_SNAPSHOT..."
+        snapper -c root delete "$EXISTING_SNAPSHOT" 2>/dev/null || true
     fi
 
     # Create the clean-state snapshot
