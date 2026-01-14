@@ -6,7 +6,7 @@ REPO_URL="${1:-}"
 
 echo "=== Declare-sh First Run Initialization ==="
 echo "This script will:"
-echo "  1. Install Git, Btrfs tools, and Snapper"
+echo "  1. Install Curl, Git, Btrfs tools, and Snapper"
 echo "  2. Clone the declare-sh repository to /opt/declare-sh"
 echo "  3. Install the daily cron job failsafe"
 echo "  4. Install the systemd service"
@@ -29,11 +29,11 @@ if [ -z "$REPO_URL" ]; then
     fi
 fi
 
-# Install git, btrfs-progs, and snapper (Debian only)
-echo "=== Installing Git, Btrfs tools, and Snapper ==="
+# Install curl, git, btrfs-progs, and snapper (Debian only)
+echo "=== Installing Curl, Git, Btrfs tools, and Snapper ==="
 apt-get update
-apt-get install -y git btrfs-progs snapper
-echo "Git, Btrfs tools, and Snapper installed successfully."
+apt-get install -y curl git btrfs-progs snapper
+echo "Curl, Git, Btrfs tools, and Snapper installed successfully."
 
 # Clone repository to /opt/declare-sh
 echo ""
