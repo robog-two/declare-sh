@@ -170,26 +170,29 @@ else
      # Configure snapper settings for declarative infrastructure
      echo "Configuring snapper settings..."
      
-     # Create a temporary config file to avoid "Invalid configdata" issues
-     SNAPPER_CONFIG="/etc/snapper/configs/root"
-     if [ -f "$SNAPPER_CONFIG" ]; then
-         # Backup original config
-         cp "$SNAPPER_CONFIG" "$SNAPPER_CONFIG.bak"
-         
-         # Update config file directly for more reliable configuration
-         sed -i 's/^TIMELINE_CREATE=.*/TIMELINE_CREATE="no"/' "$SNAPPER_CONFIG"
-         sed -i 's/^TIMELINE_CLEANUP=.*/TIMELINE_CLEANUP="no"/' "$SNAPPER_CONFIG"
-         sed -i 's/^NUMBER_CLEANUP=.*/NUMBER_CLEANUP="yes"/' "$SNAPPER_CONFIG"
-         sed -i 's/^NUMBER_MIN_AGE=.*/NUMBER_MIN_AGE="3600"/' "$SNAPPER_CONFIG"
-         sed -i 's/^NUMBER_LIMIT=.*/NUMBER_LIMIT="10"/' "$SNAPPER_CONFIG"
-         sed -i 's/^NUMBER_LIMIT_IMPORTANT=.*/NUMBER_LIMIT_IMPORTANT="5"/' "$SNAPPER_CONFIG"
-         sed -i 's/^BACKGROUND_COMPARISON=.*/BACKGROUND_COMPARISON="no"/' "$SNAPPER_CONFIG"
-         
-         echo "Snapper configuration updated."
-     else
-         echo "ERROR: Snapper config file not found at $SNAPPER_CONFIG"
+     # Use snapper set-config with error output for debugging
+     CONFIG_ERROR=$(snapper -c root set-config \
+         TIMELINE_CREATE="no" \
+         TIMELINE_CLEANUP="no" \
+         NUMBER_CLEANUP="yes" \
+         NUMBER_MIN_AGE="3600" \
+         NUMBER_LIMIT="10" \
+         NUMBER_LIMIT_IMPORTANT="5" \
+         BACKGROUND_COMPARISON="no" 2>&1) || CONFIG_EXIT=$?
+     
+     if [ ! -z "${CONFIG_ERROR:-}" ]; then
+         echo "WARNING: snapper set-config output:"
+         echo "$CONFIG_ERROR"
+     fi
+     
+     if [ ! -z "${CONFIG_EXIT:-}" ] && [ "$CONFIG_EXIT" != "0" ]; then
+         echo "ERROR: Failed to configure snapper settings (exit code: $CONFIG_EXIT)."
+         echo "Full error output:"
+         echo "$CONFIG_ERROR"
          exit 1
      fi
+     
+     echo "Snapper configuration updated."
 
     echo "Snapper settings configured:"
     echo "  - Filesystem type: btrfs"
