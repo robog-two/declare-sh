@@ -124,7 +124,8 @@ echo "Root filesystem: $ROOT_FS"
 echo "Root mount point: $ROOT_MOUNT"
 
 # Check if root is on Btrfs
-if ! btrfs filesystem show "$ROOT_FS" &>/dev/null; then
+ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
+if [ "$ROOT_FSTYPE" != "btrfs" ]; then
     echo "ERROR: Root filesystem is not Btrfs."
     echo "declare-sh requires Btrfs for snapshot and restore functionality."
     echo "Please reinstall your system on Btrfs to use this tool."
